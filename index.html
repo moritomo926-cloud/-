@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>あとで読むスクショ＆動画帳</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #007AFF;
+            --yt-red: #FF0000;
+            --bg-color: #F2F2F7;
+            --card-bg: #FFFFFF;
+            --text-main: #1C1C1E;
+            --text-sub: #8E8E93;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+            background-color: var(--bg-color);
+            margin: 0; padding-bottom: 120px;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        header {
+            position: sticky; top: 0;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+            padding: 16px; text-align: center;
+            border-bottom: 0.5px solid #C6C6C8; z-index: 100;
+        }
+
+        .container { padding: 16px; }
+
+        /* 検索とボタン */
+        .search-box { margin-bottom: 16px; }
+        #searchInput {
+            width: 100%; padding: 12px 16px; border-radius: 12px;
+            border: none; background: #E3E3E6; font-size: 16px; outline: none;
+            box-sizing: border-box;
+        }
+
+        .action-row {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;
+        }
+        
+        .btn {
+            height: 50px; border-radius: 12px; border: none; font-weight: 600;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            cursor: pointer; font-size: 14px; transition: opacity 0.2s;
+        }
+        .btn:active { opacity: 0.7; }
+        .btn-ss { background: var(--primary-color); color: white; }
+        .btn-yt { background: var(--yt-red); color: white; }
+
+        /* グリッドレイアウト */
+        .grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+            gap: 12px;
+        }
+        .card {
+            background: var(--card-bg); border-radius: 14px;
+            overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            position: relative; display: flex; flex-direction: column;
+        }
+        .card-media { position: relative; width: 100%; height: 110px; background: #000; }
+        .card-media img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .badge {
+            position: absolute; top: 8px; left: 8px;
+            padding: 3px 7px; border-radius: 6px; font-size: 10px;
+            font-weight: 800; color: white; text-transform: uppercase;
+        }
+        .badge-ss { background: var(--primary-color); }
+        .badge-yt { background: var(--yt-red); }
+
+        .info { padding: 10px; flex-grow: 1; display: flex; flex-direction: column; }
+        .title {
+            font-size: 13px; font-weight: 600; line-height: 1.4;
+            margin-bottom: 6px; color: var(--text-main);
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+        }
+        .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+        .tag {
+            background: #F2F2F7; color: #555; font-size: 9px;
+            padding: 2px 6px; border-radius: 4px; border: 0.5px solid #DDD;
+        }
+
+        .footer-meta {
+            margin-top: auto; display: flex; justify-content: space-between;
+            align-items: center; font-size: 10px; color: var(--text-sub);
+        }
+        .del-btn { color: #FF3B30; padding: 4px; cursor: pointer; }
+
+        /* ローダー */
+        .overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.8); color: white;
+            flex-direction: column; justify-content: center; align-items: center; z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h2 style="margin:0; font-size:18px; letter-spacing: -0.5px;">あとで読むスクショ＆動画</h2>
+</header>
+
+<div class="container">
+    <div class="search-box">
+        <input type="text" id="searchInput" placeholder="検索（内容、タグ、動画タイトル）" oninput="render()">
+    </div>
+
+    <div class="action-row">
+        <label class="btn btn-ss">
+            <span>📷 スクショ解析</span>
+            <input type="file" id="fileInput" hidden accept="image/*" onchange="processImage(event)">
+        </label>
+        <button class="btn btn-yt" onclick="addYouTube()">
+            <span>▶ YouTube保存</span>
+        </button>
+    </div>
+
+    <div id="grid" class="grid"></div>
+</div>
+
+<div id="loader" class="overlay">
+    <div id="status" style="margin-bottom: 15px; font-weight: bold;">AI解析中...</div>
+    <div id="progress" style="font-size: 32px; font-weight: 800;">0%</div>
+</div>
+
+<script>
+    // データベース初期化 (localStorage)
+    let db = JSON.parse(localStorage.getItem('ss_yt_v3')) || [];
+
+    // --- YouTube機能 ---
+    async function addYouTube() {
+        const url = prompt("YouTubeのURLを入力してください\n(アプリの共有リンク等)");
+        if (!url) return;
+
+        const videoId = extractVideoId(url);
+        if (!videoId) {
+            alert("有効なYouTube URLが見つかりませんでした。");
+            return;
+        }
+
+        // 本来はAPIを叩くが、ここではユーザ入力と自動タグ付け
+        const note = prompt("この動画についてのメモ・タイトルを入力してください", "YouTube動画");
+        if (note === null) return;
+
+        const entry = {
+            id: Date.now(),
+            type: 'video',
+            url: `https://www.youtube.com/watch?v=${videoId}`,
+            thumb: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+            text: note,
+            tags: ['動画', 'YouTube', ...generateAIKeywords(note)],
+            timestamp: new Date().toLocaleDateString('ja-JP')
+        };
+
+        db.unshift(entry);
+        saveAndRender();
+    }
+
+    function extractVideoId(url) {
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    // --- OCR画像機能 ---
+    async function processImage(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        toggleLoader(true);
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const result = await Tesseract.recognize(e.target.result, 'jpn+eng', {
+                    logger: m => { if(m.status === 'recognizing text') updateProgress(m.progress); }
+                });
+
+                const recognizedText = result.data.text;
+                const entry = {
+                    id: Date.now(),
+                    type: 'screenshot',
+                    img: e.target.result,
+                    text: recognizedText,
+                    tags: ['スクショ', ...generateAIKeywords(recognizedText)],
+                    timestamp: new Date().toLocaleDateString('ja-JP')
+                };
+                db.unshift(entry);
+                saveAndRender();
+            } catch (err) {
+                alert("解析に失敗しました。画像の形式を確認してください。");
+            } finally {
+                toggleLoader(false);
+                event.target.value = ''; // Reset input
+            }
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // --- 共通ロジック ---
+    function generateAIKeywords(text) {
+        const keywords = [];
+        if (/材料|レシピ|作り方|分量/.test(text)) keywords.push('料理');
+        if (/￥|円|税込|購入|注文/.test(text)) keywords.push('買い物');
+        if (/会議|打合せ|締切|資料/.test(text)) keywords.push('仕事');
+        if (/住所|地図|アクセス|出口/.test(text)) keywords.push('場所');
+        return keywords;
+    }
+
+    function saveAndRender() {
+        localStorage.setItem('ss_yt_v3', JSON.stringify(db));
+        render();
+    }
+
+    function render() {
+        const grid = document.getElementById('grid');
+        const query = document.getElementById('searchInput').value.toLowerCase();
+        grid.innerHTML = '';
+
+        const filtered = db.filter(item => 
+            item.text.toLowerCase().includes(query) || 
+            item.tags.some(t => t.includes(query))
+        );
+
+        filtered.forEach(item => {
+            const isVideo = item.type === 'video';
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            card.innerHTML = `
+                <div class="card-media" onclick="openItem('${item.type}', '${item.url || ''}', \`${item.text.replace(/[`\\]/g, '')}\`)">
+                    <div class="badge ${isVideo ? 'badge-yt' : 'badge-ss'}">${isVideo ? 'YouTube' : 'Photo'}</div>
+                    <img src="${isVideo ? item.thumb : item.img}" loading="lazy">
+                </div>
+                <div class="info">
+                    <div class="title">${item.text.substring(0, 50) || '(テキストなし)'}</div>
+                    <div class="tags">
+                        ${item.tags.map(t => `<span class="tag">${t}</span>`).join('')}
+                    </div>
+                    <div class="footer-meta">
+                        <span>${item.timestamp}</span>
+                        <span class="del-btn" onclick="deleteItem(${item.id})">削除</span>
+                    </div>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    }
+
+    function openItem(type, url, text) {
+        if (type === 'video') {
+            window.open(url, '_blank');
+        } else {
+            // スクショの場合は全文をモーダル表示（簡易版）
+            alert("【認識テキスト全文】\n\n" + text);
+        }
+    }
+
+    function deleteItem(id) {
+        if (confirm("このデータを削除してもよろしいですか？")) {
+            db = db.filter(i => i.id !== id);
+            saveAndRender();
+        }
+    }
+
+    function toggleLoader(show) { document.getElementById('loader').style.display = show ? 'flex' : 'none'; }
+    function updateProgress(p) { document.getElementById('progress').innerText = Math.floor(p * 100) + '%'; }
+
+    // 初回レンダリング
+    render();
+</script>
+</body>
+</html>
