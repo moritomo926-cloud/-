@@ -1,33 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>あとで読むスクショ＆リンク</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #007AFF;
+            --yt-red: #FF0000;
+            --news-green: #34C759;
+            --bg-color: #F2F2F7;
+            --card-bg: #FFFFFF;
+            --text-main: #1C1C1E;
+        }
+
+        body {
+            font-family: -apple-system, sans-serif;
+            background-color: var(--bg-color);
+            margin: 0; padding-bottom: 100px;
+            -webkit-touch-callout: none;
+        }
+
+        header {
+            position: sticky; top: 0;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(15px);
+            padding: 15px; text-align: center;
+            border-bottom: 0.5px solid #C6C6C8; z-index: 100;
+        }
+
+        .container { padding: 15px; }
+
+        .search-box {
+            width: 100%; padding: 12px; border-radius: 10px;
+            border: 1px solid #C6C6C8; font-size: 16px; box-sizing: border-box;
+            margin-bottom: 15px;
+        }
+
+        .action-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;
+        }
+        
+        .btn-action {
+            padding: 15px 10px; border-radius: 12px; border: none;
+            font-weight: bold; cursor: pointer; color: white;
+            font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 5px;
+        }
+        
+        .btn-ss { background: var(--primary-color); }
+        .btn-link { background: var(--news-green); }
+
+        .grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 12px;
+        }
+        .card {
+            background: var(--card-bg); border-radius: 12px;
+            overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            position: relative;
+        }
+        .card img { width: 100%; height: 110px; object-fit: cover; background: #eee; }
+        
+        .type-badge {
+            position: absolute; top: 5px; right: 5px;
+            padding: 2px 6px; border-radius: 4px; font-size: 8px;
+            color: white; font-weight: bold; text-transform: uppercase;
+        }
+
+        .info { padding: 8px; }
+        .title { font-size: 12px; font-weight: bold; margin-bottom: 4px; height: 32px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+
+        .loader {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,0.8); color: white;
+            flex-direction: column; justify-content: center; align-items: center; z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h2 style="margin:0;">あとで読むスクショ＆リンク</h2>
+</header>
+
+<div class="container">
+    <input type="text" id="searchInput" class="search-box" placeholder="キーワードで検索..." oninput="render()">
+
+    <div class="action-grid">
+        <label class="btn-action btn-ss">
+            <span>📷</span> スクショ解析
+            <input type="file" id="fileInput" hidden accept="image/*" onchange="processImage(event)">
+        </label>
+        <button class="btn-action btn-link" onclick="manualAddLink()">
+            <span>🔗</span> URLを保存
+        </button>
+    </div>
+
+    <div id="grid" class="grid"></div>
+</div>
+
+<div id="loader" class="loader">
+    <div id="status">解析中...</div>
+    <div id="progress" style="font-size: 24px; font-weight: bold;">0%</div>
+</div>
+
 <script>
+    // データベースの初期化
     let db = JSON.parse(localStorage.getItem('later_reading_db')) || [];
     let isChecking = false;
 
-    // iOS対策：画面タップ時にクリップボードを確認
-    document.body.addEventListener('click', async () => {
-        if (isChecking) return;
-        await checkClipboard();
-    });
-
-    // アプリに戻った時に確認
-    window.addEventListener('focus', checkClipboard);
-
+    // 1. クリップボード自動検知ロジック (iOS対応版)
     async function checkClipboard() {
+        if (isChecking) return;
         isChecking = true;
         try {
             const text = await navigator.clipboard.readText();
-            // URL形式かつ、最後に登録したものと違う場合のみ反応
+            // URL形式チェック & 重複チェック
             if (text.startsWith('http') && (!db[0] || db[0].url !== text)) {
-                if (confirm("コピーされているURLを保存しますか？\n" + text)) {
+                if (confirm("クリップボードのURLを保存しますか？\n" + text)) {
                     addLinkEntry(text);
-                    // 連続反応防止のために一度空にする（任意）
-                    await navigator.clipboard.writeText("");
                 }
             }
         } catch (e) {
-            console.log("アクセス拒否または非対応");
+            console.log("Clipboard info: Access waiting for user gesture.");
         } finally {
             setTimeout(() => { isChecking = false; }, 1000);
         }
+    }
+
+    // 画面タップ時にクリップボード確認をトリガー
+    document.body.addEventListener('click', checkClipboard);
+    window.addEventListener('focus', checkClipboard);
+
+    // 2. URLエントリ追加
+    function addLinkEntry(url) {
+        const videoId = extractVideoId(url);
+        const isYT = videoId !== null;
+        const note = prompt("メモを入力してください", isYT ? "YouTube動画" : "保存したリンク");
+        
+        const entry = {
+            id: Date.now(),
+            type: isYT ? 'video' : 'link',
+            url: url,
+            thumb: isYT ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : 'https://via.placeholder.com/150/34C759/FFFFFF?text=URL',
+            text: note + " " + url,
+            timestamp: new Date().toLocaleDateString()
+        };
+        db.unshift(entry);
+        saveAndRender();
     }
 
     async function manualAddLink() {
@@ -37,60 +158,68 @@
         if (url) addLinkEntry(url);
     }
 
-    function addLinkEntry(url) {
-        const videoId = extractVideoId(url);
-        const isYT = videoId !== null;
-        const entry = {
-            id: Date.now(),
-            type: isYT ? 'video' : 'link',
-            url: url,
-            thumb: isYT ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : 'https://via.placeholder.com/150/34C759/FFFFFF?text=NEWS',
-            text: (isYT ? "YouTube: " : "Link: ") + url,
-            tags: isYT ? ['動画'] : ['ニュース'],
-            timestamp: new Date().toLocaleDateString()
-        };
-        db.unshift(entry);
-        saveAndRender();
-    }
-
     function extractVideoId(url) {
         const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
         const match = url.match(regExp);
         return (match && match[2].length === 11) ? match[2] : null;
     }
 
-    // --- 以下、前回のOCR処理・描画処理（render等）を継続 ---
+    // 3. スクショ処理 (OCR)
     async function processImage(event) {
         const file = event.target.files[0];
         if (!file) return;
+
         document.getElementById('loader').style.display = 'flex';
         const reader = new FileReader();
         reader.onload = async (e) => {
-            const result = await Tesseract.recognize(e.target.result, 'jpn+eng', {
-                logger: m => { if(m.status === 'recognizing text') document.getElementById('progress').innerText = Math.floor(m.progress * 100) + '%'; }
-            });
-            db.unshift({ id: Date.now(), type: 'screenshot', img: e.target.result, text: result.data.text, tags: ['スクショ'], timestamp: new Date().toLocaleDateString() });
-            saveAndRender();
-            document.getElementById('loader').style.display = 'none';
+            try {
+                const result = await Tesseract.recognize(e.target.result, 'jpn+eng', {
+                    logger: m => { 
+                        if(m.status === 'recognizing text') 
+                            document.getElementById('progress').innerText = Math.floor(m.progress * 100) + '%'; 
+                    }
+                });
+                
+                db.unshift({
+                    id: Date.now(),
+                    type: 'screenshot',
+                    img: e.target.result,
+                    text: result.data.text,
+                    timestamp: new Date().toLocaleDateString()
+                });
+                saveAndRender();
+            } catch (err) {
+                alert("解析に失敗しました");
+            } finally {
+                document.getElementById('loader').style.display = 'none';
+            }
         };
         reader.readAsDataURL(file);
     }
 
-    function saveAndRender() { localStorage.setItem('later_reading_db', JSON.stringify(db)); render(); }
+    // 4. 共通処理
+    function saveAndRender() {
+        localStorage.setItem('later_reading_db', JSON.stringify(db));
+        render();
+    }
 
     function render() {
         const grid = document.getElementById('grid');
         const query = document.getElementById('searchInput').value.toLowerCase();
         grid.innerHTML = '';
-        db.filter(item => item.text.toLowerCase().includes(query)).forEach(item => {
+
+        db.filter(item => (item.text || item.text === "" ? item.text.toLowerCase() : "").includes(query))
+          .forEach(item => {
             const div = document.createElement('div');
             div.className = 'card';
             const color = item.type === 'video' ? '#FF0000' : (item.type === 'link' ? '#34C759' : '#007AFF');
+            const displayTitle = item.type === 'screenshot' ? item.text.substring(0, 30) : item.text;
+
             div.innerHTML = `
                 <div class="type-badge" style="background:${color}">${item.type}</div>
-                <img src="${item.type === 'screenshot' ? item.img : item.thumb}" onclick="openItem('${item.type}', '${item.url}', \`${item.text}\`)">
+                <img src="${item.type === 'screenshot' ? item.img : item.thumb}" onclick="openItem('${item.type}', '${item.url}', \`${(item.text||"").replace(/`/g, "")}\`)">
                 <div class="info">
-                    <div class="title">${item.text}</div>
+                    <div class="title">${displayTitle}</div>
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-top:5px;">
                         <span style="font-size:9px; color:#888;">${item.timestamp}</span>
                         <span style="color:red; font-size:10px; cursor:pointer;" onclick="deleteItem(${item.id})">削除</span>
@@ -100,7 +229,20 @@
         });
     }
 
-    function openItem(type, url, text) { type === 'screenshot' ? alert(text) : window.open(url, '_blank'); }
-    function deleteItem(id) { if(confirm("削除しますか？")) { db = db.filter(i => i.id !== id); saveAndRender(); } }
+    function openItem(type, url, text) {
+        if (type === 'screenshot') alert("【OCR結果】\n" + text);
+        else if (url) window.open(url, '_blank');
+    }
+
+    function deleteItem(id) {
+        if(confirm("この項目を削除しますか？")) {
+            db = db.filter(i => i.id !== id);
+            saveAndRender();
+        }
+    }
+
+    // 初期表示
     render();
 </script>
+</body>
+</html>
