@@ -3,97 +3,76 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>あとで読むスクショ＆動画帳</title>
+    <title>あとで読むスクショ＆リンク帳</title>
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <style>
         :root {
             --primary-color: #007AFF;
             --yt-red: #FF0000;
+            --news-green: #34C759;
             --bg-color: #F2F2F7;
             --card-bg: #FFFFFF;
             --text-main: #1C1C1E;
-            --text-sub: #8E8E93;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+            font-family: -apple-system, sans-serif;
             background-color: var(--bg-color);
-            margin: 0; padding-bottom: 120px;
-            -webkit-tap-highlight-color: transparent;
+            margin: 0; padding-bottom: 100px;
+            user-select: none;
         }
 
         header {
             position: sticky; top: 0;
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-            padding: 16px; text-align: center;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(15px);
+            padding: 15px; text-align: center;
             border-bottom: 0.5px solid #C6C6C8; z-index: 100;
         }
 
-        .container { padding: 16px; }
+        .container { padding: 15px; }
 
-        /* 検索とボタン */
-        .search-box { margin-bottom: 16px; }
-        #searchInput {
-            width: 100%; padding: 12px 16px; border-radius: 12px;
-            border: none; background: #E3E3E6; font-size: 16px; outline: none;
-            box-sizing: border-box;
+        .search-box {
+            width: 100%; padding: 12px; border-radius: 10px;
+            border: 1px solid #C6C6C8; font-size: 16px; box-sizing: border-box;
+            margin-bottom: 15px;
         }
 
-        .action-row {
-            display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;
+        .action-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;
         }
         
-        .btn {
-            height: 50px; border-radius: 12px; border: none; font-weight: 600;
-            display: flex; align-items: center; justify-content: center; gap: 8px;
-            cursor: pointer; font-size: 14px; transition: opacity 0.2s;
+        .btn-action {
+            padding: 15px 10px; border-radius: 12px; border: none;
+            font-weight: bold; cursor: pointer; color: white;
+            font-size: 13px; display: flex; flex-direction: column; align-items: center; gap: 5px;
         }
-        .btn:active { opacity: 0.7; }
-        .btn-ss { background: var(--primary-color); color: white; }
-        .btn-yt { background: var(--yt-red); color: white; }
+        
+        .btn-ss { background: var(--primary-color); }
+        .btn-link { background: var(--news-green); }
 
-        /* グリッドレイアウト */
         .grid {
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
             gap: 12px;
         }
         .card {
-            background: var(--card-bg); border-radius: 14px;
-            overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            position: relative; display: flex; flex-direction: column;
+            background: var(--card-bg); border-radius: 12px;
+            overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            position: relative;
         }
-        .card-media { position: relative; width: 100%; height: 110px; background: #000; }
-        .card-media img { width: 100%; height: 100%; object-fit: cover; }
+        .card img { width: 100%; height: 110px; object-fit: cover; background: #eee; }
         
-        .badge {
-            position: absolute; top: 8px; left: 8px;
-            padding: 3px 7px; border-radius: 6px; font-size: 10px;
-            font-weight: 800; color: white; text-transform: uppercase;
-        }
-        .badge-ss { background: var(--primary-color); }
-        .badge-yt { background: var(--yt-red); }
-
-        .info { padding: 10px; flex-grow: 1; display: flex; flex-direction: column; }
-        .title {
-            font-size: 13px; font-weight: 600; line-height: 1.4;
-            margin-bottom: 6px; color: var(--text-main);
-            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-        }
-        .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
-        .tag {
-            background: #F2F2F7; color: #555; font-size: 9px;
-            padding: 2px 6px; border-radius: 4px; border: 0.5px solid #DDD;
+        .type-badge {
+            position: absolute; top: 5px; right: 5px;
+            padding: 2px 6px; border-radius: 4px; font-size: 8px;
+            color: white; font-weight: bold; text-transform: uppercase;
         }
 
-        .footer-meta {
-            margin-top: auto; display: flex; justify-content: space-between;
-            align-items: center; font-size: 10px; color: var(--text-sub);
-        }
-        .del-btn { color: #FF3B30; padding: 4px; cursor: pointer; }
+        .info { padding: 8px; }
+        .title { font-size: 12px; font-weight: bold; margin-bottom: 4px; height: 32px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        .tag { background: #E5E5EA; font-size: 9px; padding: 2px 5px; border-radius: 4px; margin-right: 3px; }
 
-        /* ローダー */
-        .overlay {
+        .loader {
             display: none; position: fixed; inset: 0;
             background: rgba(0,0,0,0.8); color: white;
             flex-direction: column; justify-content: center; align-items: center; z-index: 1000;
@@ -103,61 +82,71 @@
 <body>
 
 <header>
-    <h2 style="margin:0; font-size:18px; letter-spacing: -0.5px;">あとで読むスクショ＆動画</h2>
+    <h2 style="margin:0;">あとで読むスクショ＆リンク</h2>
 </header>
 
 <div class="container">
-    <div class="search-box">
-        <input type="text" id="searchInput" placeholder="検索（内容、タグ、動画タイトル）" oninput="render()">
-    </div>
+    <input type="text" id="searchInput" class="search-box" placeholder="内容・キーワードで検索..." oninput="render()">
 
-    <div class="action-row">
-        <label class="btn btn-ss">
-            <span>📷 スクショ解析</span>
+    <div class="action-grid">
+        <label class="btn-action btn-ss">
+            <span>📷</span> スクショ解析
             <input type="file" id="fileInput" hidden accept="image/*" onchange="processImage(event)">
         </label>
-        <button class="btn btn-yt" onclick="addYouTube()">
-            <span>▶ YouTube保存</span>
+        <button class="btn-action btn-link" onclick="manualAddLink()">
+            <span>🔗</span> URLを保存
         </button>
     </div>
 
     <div id="grid" class="grid"></div>
 </div>
 
-<div id="loader" class="overlay">
-    <div id="status" style="margin-bottom: 15px; font-weight: bold;">AI解析中...</div>
-    <div id="progress" style="font-size: 32px; font-weight: 800;">0%</div>
+<div id="loader" class="loader">
+    <div id="status">解析中...</div>
+    <div id="progress" style="font-size: 24px; font-weight: bold;">0%</div>
 </div>
 
 <script>
-    // データベース初期化 (localStorage)
-    let db = JSON.parse(localStorage.getItem('ss_yt_v3')) || [];
+    let db = JSON.parse(localStorage.getItem('later_reading_db')) || [];
 
-    // --- YouTube機能 ---
-    async function addYouTube() {
-        const url = prompt("YouTubeのURLを入力してください\n(アプリの共有リンク等)");
-        if (!url) return;
+    // アプリに戻った時にクリップボードをチェック
+    window.addEventListener('focus', checkClipboard);
 
+    async function checkClipboard() {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (text.startsWith('http')) {
+                // 重複チェック（最後に登録したものと同じなら無視）
+                if (db.length > 0 && db[0].url === text) return;
+
+                if (confirm("クリップボードにURLがあります。\n保存しますか？\n\n" + text)) {
+                    addLinkEntry(text);
+                    // 保存後はクリップボードを空に（何度も出ないように）
+                    await navigator.clipboard.writeText("");
+                }
+            }
+        } catch (e) { console.log("Clipboard access denied"); }
+    }
+
+    function manualAddLink() {
+        const url = prompt("URLを入力してください");
+        if (url) addLinkEntry(url);
+    }
+
+    function addLinkEntry(url) {
         const videoId = extractVideoId(url);
-        if (!videoId) {
-            alert("有効なYouTube URLが見つかりませんでした。");
-            return;
-        }
-
-        // 本来はAPIを叩くが、ここではユーザ入力と自動タグ付け
-        const note = prompt("この動画についてのメモ・タイトルを入力してください", "YouTube動画");
-        if (note === null) return;
-
+        const isYT = videoId !== null;
+        const title = prompt("メモやタイトルを入力", isYT ? "YouTube動画" : "ニュース・記事");
+        
         const entry = {
             id: Date.now(),
-            type: 'video',
-            url: `https://www.youtube.com/watch?v=${videoId}`,
-            thumb: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
-            text: note,
-            tags: ['動画', 'YouTube', ...generateAIKeywords(note)],
-            timestamp: new Date().toLocaleDateString('ja-JP')
+            type: isYT ? 'video' : 'link',
+            url: url,
+            thumb: isYT ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : 'https://via.placeholder.com/150/34C759/FFFFFF?text=NEWS',
+            text: title + " " + url,
+            tags: isYT ? ['動画'] : ['ニュース'],
+            timestamp: new Date().toLocaleDateString()
         };
-
         db.unshift(entry);
         saveAndRender();
     }
@@ -168,52 +157,34 @@
         return (match && match[2].length === 11) ? match[2] : null;
     }
 
-    // --- OCR画像機能 ---
     async function processImage(event) {
         const file = event.target.files[0];
         if (!file) return;
-
-        toggleLoader(true);
+        showLoader(true);
         const reader = new FileReader();
         reader.onload = async (e) => {
             try {
                 const result = await Tesseract.recognize(e.target.result, 'jpn+eng', {
                     logger: m => { if(m.status === 'recognizing text') updateProgress(m.progress); }
                 });
-
-                const recognizedText = result.data.text;
                 const entry = {
                     id: Date.now(),
                     type: 'screenshot',
                     img: e.target.result,
-                    text: recognizedText,
-                    tags: ['スクショ', ...generateAIKeywords(recognizedText)],
-                    timestamp: new Date().toLocaleDateString('ja-JP')
+                    text: result.data.text,
+                    tags: ['スクショ'],
+                    timestamp: new Date().toLocaleDateString()
                 };
                 db.unshift(entry);
                 saveAndRender();
-            } catch (err) {
-                alert("解析に失敗しました。画像の形式を確認してください。");
-            } finally {
-                toggleLoader(false);
-                event.target.value = ''; // Reset input
-            }
+            } catch (err) { alert("解析失敗"); }
+            finally { showLoader(false); }
         };
         reader.readAsDataURL(file);
     }
 
-    // --- 共通ロジック ---
-    function generateAIKeywords(text) {
-        const keywords = [];
-        if (/材料|レシピ|作り方|分量/.test(text)) keywords.push('料理');
-        if (/￥|円|税込|購入|注文/.test(text)) keywords.push('買い物');
-        if (/会議|打合せ|締切|資料/.test(text)) keywords.push('仕事');
-        if (/住所|地図|アクセス|出口/.test(text)) keywords.push('場所');
-        return keywords;
-    }
-
     function saveAndRender() {
-        localStorage.setItem('ss_yt_v3', JSON.stringify(db));
+        localStorage.setItem('later_reading_db', JSON.stringify(db));
         render();
     }
 
@@ -222,56 +193,43 @@
         const query = document.getElementById('searchInput').value.toLowerCase();
         grid.innerHTML = '';
 
-        const filtered = db.filter(item => 
-            item.text.toLowerCase().includes(query) || 
-            item.tags.some(t => t.includes(query))
-        );
-
-        filtered.forEach(item => {
-            const isVideo = item.type === 'video';
-            const card = document.createElement('div');
-            card.className = 'card';
+        db.filter(item => item.text.toLowerCase().includes(query))
+          .forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'card';
+            const isSS = item.type === 'screenshot';
+            const color = item.type === 'video' ? 'var(--yt-red)' : (item.type === 'link' ? 'var(--news-green)' : 'var(--primary-color)');
             
-            card.innerHTML = `
-                <div class="card-media" onclick="openItem('${item.type}', '${item.url || ''}', \`${item.text.replace(/[`\\]/g, '')}\`)">
-                    <div class="badge ${isVideo ? 'badge-yt' : 'badge-ss'}">${isVideo ? 'YouTube' : 'Photo'}</div>
-                    <img src="${isVideo ? item.thumb : item.img}" loading="lazy">
-                </div>
+            div.innerHTML = `
+                <div class="type-badge" style="background:${color}">${item.type}</div>
+                <img src="${isSS ? item.img : item.thumb}" onclick="openItem('${item.type}', '${item.url}', \`${item.text.replace(/`/g, "")}\`)">
                 <div class="info">
-                    <div class="title">${item.text.substring(0, 50) || '(テキストなし)'}</div>
-                    <div class="tags">
-                        ${item.tags.map(t => `<span class="tag">${t}</span>`).join('')}
-                    </div>
-                    <div class="footer-meta">
-                        <span>${item.timestamp}</span>
-                        <span class="del-btn" onclick="deleteItem(${item.id})">削除</span>
+                    <div class="title">${item.text}</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size:9px; color:#888;">${item.timestamp}</span>
+                        <span style="color:red; font-size:10px;" onclick="deleteItem(${item.id})">削除</span>
                     </div>
                 </div>
             `;
-            grid.appendChild(card);
+            grid.appendChild(div);
         });
     }
 
     function openItem(type, url, text) {
-        if (type === 'video') {
-            window.open(url, '_blank');
-        } else {
-            // スクショの場合は全文をモーダル表示（簡易版）
-            alert("【認識テキスト全文】\n\n" + text);
-        }
+        if (type === 'screenshot') alert("【OCR結果】\n" + text);
+        else window.open(url, '_blank');
     }
 
     function deleteItem(id) {
-        if (confirm("このデータを削除してもよろしいですか？")) {
+        if(confirm("削除しますか？")) {
             db = db.filter(i => i.id !== id);
             saveAndRender();
         }
     }
 
-    function toggleLoader(show) { document.getElementById('loader').style.display = show ? 'flex' : 'none'; }
+    function showLoader(s) { document.getElementById('loader').style.display = s ? 'flex' : 'none'; }
     function updateProgress(p) { document.getElementById('progress').innerText = Math.floor(p * 100) + '%'; }
 
-    // 初回レンダリング
     render();
 </script>
 </body>
